@@ -32,8 +32,8 @@ def generate_midi(secret_message: str, password: str, output_path: str = "output
     mid.save(output_path)
     print(f"[✅] Encrypted MIDI saved at: {output_path}")
 
-# Example usage (for CLI testing)
-if __name__ == "__main__":
-    msg = input("Enter secret message: ")
-    pwd = input("Enter password: ")
-    generate_midi(msg, pwd)
+# # Example usage (for CLI testing)
+# if __name__ == "__main__":
+#     msg = input("Enter secret message: ")
+#     pwd = input("Enter password: ")
+#     generate_midi(msg, pwd)

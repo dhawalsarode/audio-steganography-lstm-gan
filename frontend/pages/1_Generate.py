@@ -1,36 +1,49 @@
-# frontend/pages/1_Generate.py
-
 import streamlit as st
-import subprocess
 import os
-from pathlib import Path
+import streamlit as st
+import os
+import json
 
-st.title("🔐 Embed Secret Message into MIDI")
-st.markdown("Securely hide a message inside a MIDI file using LSTM-GAN and AES encryption.")
+USER_FILE = os.path.join(os.path.dirname(__file__), "../users.json")
 
-# Input fields
-secret = st.text_area("Enter Secret Message", height=100)
-password = st.text_input("Enter Password (for encryption)", type="password")
+def is_logged_in():
+    if not os.path.exists(USER_FILE):
+        return False
+    with open(USER_FILE, "r") as f:
+        users = json.load(f)
+    return "logged_in" in st.session_state and st.session_state.logged_in
 
-# Output path
-output_path = Path("output/output.mid")
+if not is_logged_in():
+    st.warning("Please log in to access this page.")
+    st.stop()
 
-if st.button("Generate Encrypted MIDI"):
-    if not secret or not password:
-        st.error("Both message and password are required.")
+st.title("🎵 Generate Encrypted MIDI")
+
+# Show form
+with st.form("generation_form"):
+    secret_message = st.text_area("Enter your secret message", max_chars=200)
+    password = st.text_input("Enter password", type="password")
+    submit_button = st.form_submit_button("Generate")
+
+if submit_button:
+    if not secret_message or not password:
+        st.warning("Please provide both a secret message and a password.")
     else:
-        # Run backend/generate.py via subprocess
-        result = subprocess.run(
-            ["python", "backend/generate.py"],
-            input=f"{secret}\n{password}\n",
-            capture_output=True,
-            text=True
-        )
+        try:
+            # Ensure backend is triggered with correct absolute path
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+            generate_script = os.path.join(project_root, 'backend', 'generate.py')
+            
+            command = f'python "{generate_script}" "{secret_message}" "{password}"'
+            result = os.system(command)
+            
+            output_path = os.path.join(project_root, "output", "output.mid")
 
-        if result.returncode == 0 and output_path.exists():
-            st.success("✅ MIDI file generated and encrypted successfully!")
-            with open(output_path, "rb") as f:
-                st.download_button("🎵 Download Encrypted MIDI", f, file_name="secret_output.mid")
-        else:
-            st.error("❌ Failed to generate MIDI. Check logs.")
-            st.code(result.stderr or result.stdout)
+            if result == 0 and os.path.exists(output_path):
+                st.success("✅ MIDI generated successfully!")
+                with open(output_path, "rb") as f:
+                    st.download_button("⬇️ Download MIDI File", f, file_name="encrypted_output.mid")
+            else:
+                st.error("❌ Failed to generate MIDI. Check logs.")
+        except Exception as e:
+            st.exception(e)
