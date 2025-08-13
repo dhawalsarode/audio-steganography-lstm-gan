@@ -1,20 +1,12 @@
-# frontend/pages/2_Decrypt.py
-
-import streamlit as st
-import sys
-import os
 import streamlit as st
 import os
 import json
+import sys
 
 USER_FILE = os.path.join(os.path.dirname(__file__), "../users.json")
 
 def is_logged_in():
-    if not os.path.exists(USER_FILE):
-        return False
-    with open(USER_FILE, "r") as f:
-        users = json.load(f)
-    return "logged_in" in st.session_state and st.session_state.logged_in
+    return "authenticated" in st.session_state and st.session_state["authenticated"]
 
 if not is_logged_in():
     st.warning("Please log in to access this page.")
