@@ -1,34 +1,23 @@
-# backend/generate.py
 import mido
-import os
-import base64
 from utils.aes_utils import encrypt_message
 
-def bytes_to_midi_notes(byte_data: bytes) -> list:
-    """Convert bytes to MIDI notes (0-127 range)."""
-    return list(byte_data)  # each byte is already 0–255 but MIDI will mod it to 0–127
+START_MARKER = 0   # Valid MIDI note for start
+END_MARKER = 1     # Valid MIDI note for end
 
-def generate_midi(secret_message: str, password: str, output_path: str = "output/output.mid"):
-    # AES encrypt → base64 encode → bytes
-    encrypted_b64 = encrypt_message(secret_message, password).encode("utf-8")
+def message_to_midi_notes(enc_str: str):
+    return [ord(ch) for ch in enc_str]
 
-    # Map bytes to MIDI notes
-    notes = bytes_to_midi_notes(encrypted_b64)
+def generate_midi(secret_message: str, password: str, output_path: str):
+    enc_str = encrypt_message(secret_message, password)
+    notes = [START_MARKER] + message_to_midi_notes(enc_str) + [END_MARKER]
 
     mid = mido.MidiFile()
     track = mido.MidiTrack()
     mid.tracks.append(track)
 
     for note in notes:
-        midi_note = note % 128  # keep in MIDI range
-        track.append(mido.Message('note_on', note=midi_note, velocity=64, time=0))
-        track.append(mido.Message('note_off', note=midi_note, velocity=64, time=200))
+        track.append(mido.Message('note_on', note=note if note <= 127 else 127, velocity=64, time=120))
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    print(f"[DEBUG] Generated {len(notes)} notes with markers.")
     mid.save(output_path)
-    print(f"[✅] Encrypted MIDI saved at: {output_path}")
-
-if __name__ == "__main__":
-    msg = input("Enter secret message: ")
-    pwd = input("Enter password: ")
-    generate_midi(msg, pwd)
+    return output_path

@@ -1,40 +1,29 @@
-import streamlit as st
-import os
-import json
 import sys
+import os
 
-USER_FILE = os.path.join(os.path.dirname(__file__), "../users.json")
+# Ensure project root is in PYTHONPATH so backend package can be imported
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
 
-def is_logged_in():
-    return "authenticated" in st.session_state and st.session_state["authenticated"]
+from backend.extract import extract_message
+import streamlit as st
 
-if not is_logged_in():
-    st.warning("Please log in to access this page.")
-    st.stop()
+st.title("Decrypt MIDI File")
 
-# Add backend folder to the system path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../backend")))
+uploaded_file = st.file_uploader("Upload MIDI", type=["mid", "midi"])
+password = st.text_input("Password", type="password")
 
-from utils.aes_utils import decrypt_message
-from midi_utils import midi_to_message
-from io import BytesIO
-
-st.title("🔓 Decrypt Secret Message from MIDI")
-st.markdown("Upload an encrypted `.mid` file and provide the password to extract the hidden message.")
-
-uploaded_file = st.file_uploader("📂 Upload Encrypted MIDI File", type=["mid", "midi"])
-password = st.text_input("🔑 Enter Decryption Password", type="password")
-
-if st.button("Decrypt"):
-    if uploaded_file and password:
-        try:
-            midi_bytes = uploaded_file.read()
-            decrypted = midi_to_message(midi_bytes, password)
-
-            st.success("✅ Message Decrypted:")
-            st.code(decrypted)
-
-        except Exception as e:
-            st.error(f"❌ Failed to decrypt: {str(e)}")
+if st.button("Decrypt Message"):
+    if not uploaded_file or not password:
+        st.error("Please upload a MIDI file and enter a password.")
     else:
-        st.warning("Please upload a file and enter the password.")
+        try:
+            temp_path = os.path.join(ROOT_DIR, "temp_uploaded.mid")
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.read())
+
+            msg = extract_message(temp_path, password)
+            st.success(f"Decrypted message: {msg}")
+        except Exception as e:
+            st.error(f"❌ Failed to decrypt: {e}")
