@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import {
   Card, CardContent, Typography, TextField, Button,
@@ -8,6 +8,7 @@ import {
 import { toast } from 'react-toastify';
 import { Midi } from '@tonejs/midi';
 import Soundfont from 'soundfont-player';
+import MidiVisualizer from './MidiVisualizer';
 
 export default function Generate() {
   const [message, setMessage] = useState('');
@@ -17,9 +18,11 @@ export default function Generate() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [instrument, setInstrument] = useState('acoustic_grand_piano');
   const [loop, setLoop] = useState(false);
+  const [playTime, setPlayTime] = useState(0);
 
-  // store audio context & player so we can stop later
   const audioCtxRef = useRef(null);
+  const playStartRef = useRef(null);
+  const requestIdRef = useRef(null);
 
   const handleGenerate = async () => {
     setMidiData(null);
@@ -53,9 +56,40 @@ export default function Generate() {
       audioCtxRef.current.close().catch(() => {});
       audioCtxRef.current = null;
       setIsPlaying(false);
+      setPlayTime(0);
+      if (requestIdRef.current) {
+        cancelAnimationFrame(requestIdRef.current);
+        requestIdRef.current = null;
+      }
       toast.info('⏹ Playback stopped');
     }
   };
+
+  useEffect(() => {
+    if (!isPlaying) {
+      setPlayTime(0);
+      if (requestIdRef.current) {
+        cancelAnimationFrame(requestIdRef.current);
+        requestIdRef.current = null;
+      }
+      return;
+    }
+    playStartRef.current = performance.now();
+
+    const update = (timestamp) => {
+      const elapsed = (timestamp - playStartRef.current) / 1000;
+      setPlayTime(elapsed);
+      requestIdRef.current = requestAnimationFrame(update);
+    };
+    requestIdRef.current = requestAnimationFrame(update);
+
+    return () => {
+      if (requestIdRef.current) {
+        cancelAnimationFrame(requestIdRef.current);
+        requestIdRef.current = null;
+      }
+    };
+  }, [isPlaying]);
 
   const playMidi = async () => {
     if (!midiData) return;
@@ -65,7 +99,7 @@ export default function Generate() {
         new Uint8Array(atob(midiData).split('').map(c => c.charCodeAt(0)))
       );
 
-      // if already playing, stop first
+      // stop old playback
       stopPlayback();
 
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -88,17 +122,16 @@ export default function Generate() {
       scheduleNotes();
 
       if (loop) {
-        // re-schedule every song duration
         const totalMs = midi.duration * 1000;
         const intervalId = setInterval(() => {
           if (!audioCtxRef.current) {
             clearInterval(intervalId);
             return;
           }
+          playStartRef.current = performance.now();
           scheduleNotes();
         }, totalMs);
       } else {
-        // stop playing indicator after one run
         setTimeout(() => {
           setIsPlaying(false);
           audioCtxRef.current = null;
@@ -111,7 +144,7 @@ export default function Generate() {
   };
 
   return (
-    <Card sx={{ width: 400 }}>
+    <Card sx={{ width: 500 }}>
       <CardContent>
         <Typography variant="h6" gutterBottom>
           Generate Encrypted MIDI
@@ -203,9 +236,13 @@ export default function Generate() {
               onClick={stopPlayback}
               disabled={!isPlaying}
               fullWidth
+              sx={{ mb: 2 }}
             >
               ⏹ Stop
             </Button>
+
+            {/* MIDI Visualizer */}
+            <MidiVisualizer midiBase64={midiData} playTime={playTime} />
           </>
         )}
       </CardContent>
